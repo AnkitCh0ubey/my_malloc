@@ -35,24 +35,14 @@ Chunk_list freed_chunk = {
 };
 Chunk_list temp_chunk = {0};
 
-// comparator function
-int compare_start_ptr(const void *a, const void *b) {
-  const Heap_Chunk *a_chunk = a;
-  const Heap_Chunk *b_chunk = b;
-  return a_chunk->start - b_chunk->start;
-}
-
-// binary search using comparator
+// linear search
 int find_chunk(Chunk_list *list, void *start_ptr) {
-  Heap_Chunk key = {.start = start_ptr};
-  Heap_Chunk *result = bsearch(&key, list->chunks, list->count,
-                               sizeof(list->chunks[0]), compare_start_ptr);
-  if (result != 0) {
-    assert(list->chunks <= result);
-    return (result - list->chunks) / sizeof(list->chunks[0]);
-  } else {
-    return -1;
+  for (size_t i = 0; i < list->count; ++i) {
+    if (list->chunks[i].start == start_ptr) {
+      return (int)i;
+    }
   }
+  return -1;
 }
 
 // to add the chunks into a chunklist
@@ -137,9 +127,9 @@ void *alloc(size_t size) {
 void free(void *ptr) {
   if (ptr != NULL) {
     const int index = find_chunk(&alloced_chunk, ptr);
-    // printf("%d\n", index);
-    // fflush(stdout);
-    // abort();
+	// printf("%p\n", ptr);
+      	// fflush(stdout);
+	// abort();
     assert(index >= 0);
     Heap_Chunk chunk = alloced_chunk.chunks[index];
     insert_chunk(&freed_chunk, chunk.start, chunk.size);
@@ -153,11 +143,17 @@ void collect_heap() {
   printf("temp pointer: %p\n", &temp_chunk);
   printf("freed pointer: %p\n", &freed_chunk);
 }
+#define N 10
+void *ptrs[N] = {0};
 
 int main() {
-  for (size_t i = 0; i < 10; ++i) {
-    void *ptr = alloc(i);
-    free(ptr);
+  for (size_t i = 1; i < N; ++i) {
+    ptrs[i] = alloc(i);
+  }
+  for (size_t i = 0; i < N; ++i) {
+    if (i % 2 == 0) {
+      free(ptrs[i]);
+    }
   }
   alloc(10);
   dump_heap(&alloced_chunk);
