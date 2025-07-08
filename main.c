@@ -3,8 +3,15 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+
 
 #define HEAP_CAPACITY 640000
+
+static_assert(HEAP_CAPACITY % sizeof(uintptr_t) == 0,
+	      "The pointer of the platform is of upsupported size.");
+uintptr_t heap[HEAP_CAPACITY] = {0};
+
 #define TOTAL_ALLOCATION 1024 // Total number of allocation possible
 
 #define TODO()                                                                 \
@@ -16,7 +23,7 @@
 
 // struct to store the detail of a chunk
 typedef struct {
-  char *start;
+  uintptr_t *start;
   size_t size;
 } Heap_Chunk;
 
@@ -25,8 +32,6 @@ typedef struct {
   size_t count;
   Heap_Chunk chunks[HEAP_CAPACITY];
 } Chunk_list;
-
-char heap[HEAP_CAPACITY] = {0};
 
 Chunk_list alloced_chunk = {0}; //to store the heaps
 Chunk_list freed_chunk = {
@@ -51,7 +56,7 @@ void insert_chunk(Chunk_list *list, void *start_ptr, size_t size) {
   list->chunks[list->count].start = start_ptr;
   list->chunks[list->count].size = size;
 
-  for (size_t i = list->count;
+  for (size_t i = list->count; 
        i > 0 && list->chunks[i].start < list->chunks[i - 1].start; --i) {
     const Heap_Chunk temp = list->chunks[i];
     list->chunks[i] = list->chunks[i - 1];
@@ -92,14 +97,14 @@ void remove_chunk(Chunk_list *list, size_t index) {
 void dump_heap(const Chunk_list *list) {
   printf("Allocated Chunks (%zu):\n", list->count);
   for (size_t i = 0; i < list->count; ++i) {
-    printf("start: %p, size: %zu\n", list->chunks[i].start,
+    printf("start: %p, size: %zu\n",(void*) list->chunks[i].start,
            list->chunks[i].size);
   }
 }
 
-void *alloc(size_t size) {
-
-  if (size > 0) {
+void *alloc(size_t size_bytes) {
+	const size_t relative_pos = (size_bytes + sizeof(uintptr_t) - 1) / sizeof(uintptr_t);
+  if (relative_pos > 0) {
     merge_chunk(&temp_chunk, &freed_chunk);
     freed_chunk = temp_chunk;
 
@@ -108,13 +113,13 @@ void *alloc(size_t size) {
 
       // since they are sorted in ascending order,
       // this condition will ensure the best freed memory is allocated next
-      if (chunk.size >= size) {
+      if (chunk.size >= relative_pos) {
         remove_chunk(&freed_chunk, i);
-        const size_t tail_size = chunk.size - size;
-        insert_chunk(&alloced_chunk, chunk.start, size);
+        const size_t padding = chunk.size - relative_pos;
+        insert_chunk(&alloced_chunk, chunk.start, relative_pos);
 
-        if (tail_size > 0) {
-          insert_chunk(&freed_chunk, chunk.start + size, tail_size);
+        if (padding > 0) {
+          insert_chunk(&freed_chunk, chunk.start + relative_pos, padding);
         }
 
         return chunk.start;
@@ -149,11 +154,6 @@ void *ptrs[N] = {0};
 int main() {
   for (size_t i = 1; i < N; ++i) {
     ptrs[i] = alloc(i);
-  }
-  for (size_t i = 0; i < N; ++i) {
-    if (i % 2 == 0) {
-      free(ptrs[i]);
-    }
   }
   alloc(10);
   dump_heap(&alloced_chunk);
